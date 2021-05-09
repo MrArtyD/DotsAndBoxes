@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">DotsAndBoxes</string>
+    <string name="turn_of">Turn of %1$s</string>
+    <string name="restart">Restart</string>
+    <string name="score">Score: %1$d</string>
+    <string name="ai_name">AI</string>
+    <string name="player_one_name">Player One</string>
 </resources>

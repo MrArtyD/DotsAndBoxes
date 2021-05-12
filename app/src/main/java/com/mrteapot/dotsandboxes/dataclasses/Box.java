@@ -7,59 +7,48 @@ public class Box {
     private Line rightLine;
     private Line bottomLine;
     private Line leftLine;
-    private boolean isSurrounded;
+    private Line[] lines;
     private boolean isTaken;
+    private static final int defaultColor = Color.YELLOW;
     private int color;
 
     public Box() {
-        isSurrounded = false;
         isTaken = false;
-        color = Color.YELLOW;
+        color = defaultColor;
+    }
+
+    public void fillLines(Line topLine, Line bottomLine, Line leftLine, Line rightLine){
+        this.topLine = topLine;
+        this.rightLine = rightLine;
+        this.bottomLine = bottomLine;
+        this.leftLine = leftLine;
+
+        lines = new Line[]{topLine, bottomLine, leftLine, rightLine};
+    }
+
+    public Line[] getLines() {
+        return lines;
     }
 
     public Line getTopLine() {
         return topLine;
     }
 
-    public void setTopLine(Line topLine) {
-        this.topLine = topLine;
-    }
-
     public Line getRightLine() {
         return rightLine;
-    }
-
-    public void setRightLine(Line rightLine) {
-        this.rightLine = rightLine;
     }
 
     public Line getBottomLine() {
         return bottomLine;
     }
 
-    public void setBottomLine(Line bottomLine) {
-        this.bottomLine = bottomLine;
-    }
-
     public Line getLeftLine() {
         return leftLine;
     }
 
-    public void setLeftLine(Line leftLine) {
-        this.leftLine = leftLine;
-    }
-
-    public boolean isSurrounded() {
-        isSurrounded = topLine.isTaken() && rightLine.isTaken() && bottomLine.isTaken() && leftLine.isTaken();
-        return isSurrounded;
-    }
-
     public boolean isTaken() {
+        isTaken = topLine.isTaken() && rightLine.isTaken() && bottomLine.isTaken() && leftLine.isTaken();
         return isTaken;
-    }
-
-    public void setTaken(boolean taken) {
-        isTaken = taken;
     }
 
     public int getColor() {
@@ -69,4 +58,9 @@ public class Box {
     public void setColor(int color) {
         this.color = color;
     }
+
+    public static int getDefaultColor() {
+        return defaultColor;
+    }
+
 }

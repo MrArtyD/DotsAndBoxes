@@ -11,24 +11,28 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 
+import com.mrteapot.dotsandboxes.ai.AI;
 import com.mrteapot.dotsandboxes.dataclasses.Box;
 import com.mrteapot.dotsandboxes.dataclasses.DrawingValuesHolder;
 import com.mrteapot.dotsandboxes.dataclasses.Line;
 import com.mrteapot.dotsandboxes.dataclasses.Player;
-import com.mrteapot.dotsandboxes.functional.classes.BoxExaminer;
+import com.mrteapot.dotsandboxes.functional.classes.BoxesExaminer;
+import com.mrteapot.dotsandboxes.functional.classes.LinesExaminer;
 import com.mrteapot.dotsandboxes.functional.interfaces.GameSupervisor;
 
 public class GameView extends View {
 
-    private final int gridSize = 5;
+    private final int gridSize = 3;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     private final DrawingValuesHolder drawingValues = new DrawingValuesHolder();
     private final Line[][] horizontalLines = new Line[gridSize+1][gridSize];
     private final Line[][] verticalLines = new Line[gridSize][gridSize+1];
     private final Box[][] boxes = new Box[gridSize][gridSize];
 
     private GameSupervisor gameSupervisor;
-    private final BoxExaminer boxExaminer = new BoxExaminer();
+    private final BoxesExaminer boxesExaminer;
+    private final LinesExaminer linesExaminer;
     private Player currentPlayer;
 
     @SuppressLint("ClickableViewAccessibility")
@@ -36,6 +40,9 @@ public class GameView extends View {
         super(context, attrs);
 
         initValues();
+        boxesExaminer = new BoxesExaminer(boxes);
+        linesExaminer = new LinesExaminer(horizontalLines, verticalLines);
+
         this.setOnTouchListener((view, motionEvent) -> {
             checkTouchCoordinates(motionEvent);
             return false;
@@ -46,10 +53,10 @@ public class GameView extends View {
         for (int i = 0; i <= gridSize; i++){
             for (int j = 0; j <= gridSize; j++){
                 if (j != gridSize){
-                    horizontalLines[i][j] = new Line();
+                    horizontalLines[i][j] = new Line(Direction.HORIZONTAL);
                 }
                 if (i != gridSize){
-                    verticalLines[i][j] = new Line();
+                    verticalLines[i][j] = new Line(Direction.VERTICAL);
                 }
             }
         }
@@ -59,18 +66,18 @@ public class GameView extends View {
                 boxes[i][j] = new Box();
                 Box currentBox = boxes[i][j];
 
-                currentBox.setTopLine(horizontalLines[i][j]);
-                currentBox.setBottomLine(horizontalLines[i+1][j]);
-                currentBox.setLeftLine(verticalLines[i][j]);
-                currentBox.setRightLine(verticalLines[i][j+1]);
+                currentBox.fillLines(horizontalLines[i][j], horizontalLines[i+1][j], verticalLines[i][j], verticalLines[i][j+1]);
             }
         }
 
     }
 
-    public void startGame(Player player, GameSupervisor supervisor){
-        currentPlayer = player;
+    public void setGameSupervisor(GameSupervisor supervisor){
         gameSupervisor = supervisor;
+    }
+
+    public void setFirstPlayer(Player player){
+        currentPlayer = player;
     }
 
     public void changePlayer(Player player){
@@ -81,53 +88,39 @@ public class GameView extends View {
         float positionX = event.getX();
         float positionY = event.getY();
 
-        boolean isLIneTouched = checkIfLineTouched(positionX, positionY);
+        boolean isLIneTaken = linesExaminer.isAnyLineTaken(positionX, positionY);
 
-        if (isLIneTouched){
-            if (boxExaminer.isBoxTaken(boxes, currentPlayer)){
+        if (isLIneTaken){
+            linesExaminer.setColorToTakenLine(currentPlayer.getColor());
+
+            invalidate();
+
+            if (boxesExaminer.isBoxTaken()){
+                boxesExaminer.setColorToTakenBox(currentPlayer.getColor());
                 currentPlayer.increaseScore();
-                if (boxExaminer.isBoxTaken(boxes, currentPlayer)){
+
+                if (boxesExaminer.isBoxTaken()){
+                    boxesExaminer.setColorToTakenBox(currentPlayer.getColor());
                     currentPlayer.increaseScore();
                 }
+
                 gameSupervisor.updateScore(currentPlayer);
             }else {
                 gameSupervisor.changeTurn(currentPlayer);
             }
-            if (boxExaminer.isAllBoxesTaken(boxes)){
+
+            invalidate();
+
+            if (boxesExaminer.isAllBoxesTaken()){
                 gameSupervisor.endGame();
+                return;
+            }
+
+            if (currentPlayer instanceof AI){
+                gameSupervisor.makeAIMove();
             }
         }
-        invalidate();
-    }
 
-    private boolean checkIfLineTouched(float positionX, float positionY) {
-        for (int i = 0; i <= gridSize; i++){
-            for (int j = 0; j <= gridSize; j++){
-                Line currentLine;
-                if (j != gridSize){
-                    currentLine = horizontalLines[i][j];
-                    if ((currentLine.getStartX() <= positionX && currentLine.getStopX() >= positionX)
-                            && (currentLine.getStartY() + 30 >= positionY && currentLine.getStartY() - 30 <= positionY)
-                            && !currentLine.isTaken()){
-                        currentLine.setTaken(true);
-                        currentLine.setColor(currentPlayer.getColor());
-                        return true;
-                    }
-                }
-
-                if (i != gridSize){
-                    currentLine = verticalLines[i][j];
-                    if ((currentLine.getStartX() + 30 >= positionX && currentLine.getStopX() - 30 <= positionX)
-                            && (currentLine.getStartY() <= positionY && currentLine.getStopY() >= positionY)
-                            && !currentLine.isTaken()){
-                        currentLine.setTaken(true);
-                        currentLine.setColor(currentPlayer.getColor());
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
     }
 
     @Override
@@ -141,6 +134,11 @@ public class GameView extends View {
         drawRectangles(canvas);
         drawLines(canvas, drawingValues.getStartPointX(), drawingValues.getStartPointY(), drawingValues.getDrawingStep());
         drawDots(canvas, drawingValues.getStartPointX(), drawingValues.getStartPointY(), drawingValues.getDrawingStep());
+
+        if (!gameSupervisor.isGameStarted()){
+            gameSupervisor.startGame();
+            gameSupervisor.setGameAsStarted();
+        }
     }
 
     private void calculateDrawingValues(float width, float height) {
@@ -166,12 +164,14 @@ public class GameView extends View {
     private void drawRectangles(Canvas canvas) {
         for (Box[] lineOfBoxes : boxes){
             for(Box box : lineOfBoxes){
-                if (box.isSurrounded()){
+                if (box.isTaken()){
                     paint.setColor(box.getColor());
-                    float left = box.getLeftLine().getStartX();
-                    float top = box.getTopLine().getStartY();
-                    float right = box.getRightLine().getStopX();
-                    float bottom = box.getBottomLine().getStopY();
+                    int indentation = 15;
+
+                    float left = box.getLeftLine().getStartX() + indentation;
+                    float top = box.getTopLine().getStartY() + indentation;
+                    float right = box.getRightLine().getStopX() - indentation;
+                    float bottom = box.getBottomLine().getStopY() - indentation;
 
                     canvas.drawRect(left, top, right, bottom, paint);
                 }
@@ -223,7 +223,7 @@ public class GameView extends View {
     }
 
     private void drawDots(Canvas canvas, float startPointX, float startPointY, float dotStep) {
-        float radius = 110f / gridSize;
+        float radius = 80f / gridSize;
         paint.setColor(Color.RED);
         paint.setStyle(Paint.Style.FILL);
 
@@ -234,4 +234,23 @@ public class GameView extends View {
         }
     }
 
+    public Line[][] getHorizontalLines() {
+        return horizontalLines;
+    }
+
+    public Line[][] getVerticalLines() {
+        return verticalLines;
+    }
+
+    public Box[][] getBoxes() {
+        return boxes;
+    }
+
+    public int getGridSize() {
+        return gridSize;
+    }
+
+    public BoxesExaminer getBoxesExaminer() {
+        return boxesExaminer;
+    }
 }
